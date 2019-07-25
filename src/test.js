@@ -1,26 +1,33 @@
 function () {
 	var map = nsGmx.leafletMap,
-		data = [],
-		fg = L.geoJSON(data, {
+		data = {},
+		lid = 'B750DB8488714446A1C0F2246B8FA630',
+		gmxProps = nsGmx.gmxMap.layersByID[lid].getGmxProperties(),
+		meta = gmxProps.MetaProperties,
+		delay = meta.delay ? parseInt(meta.delay.Value) : 5000,
+		prefix = '//maps.kosmosnimki.ru',
+		url = 'http://dvfu.dewish.ru/map/api',
+		fg = L.geoJSON([], {
 			onEachFeature: function (feature, layer) {
+				let props = feature.properties;
+				data[props.id] = layer;
 				layer.options.icon = L.icon({
-					iconUrl: '//maps.kosmosnimki.ru/GetImage.ashx?usr=motorin%40scanex.ru&img=icon.png',
+					iconUrl: prefix + '/GetImage.ashx?usr=motorin%40scanex.ru&img=icon.png',
 					iconSize: [30, 30],
 					iconAnchor: [15, 15],
-					popupAnchor: [-15, -15]
+					popupAnchor: [7, -15]
 				});
 			}
 		}).bindPopup(function (layer) {
-			return layer.feature.properties.description;
-		}).addTo(map),
+			return JSON.stringify(layer.feature.properties, null, 2);
+		}),
 		reget = () => {
-		 fetch('//maps.kosmosnimki.ru/proxy?http://dvfu.dewish.ru/map/api', {mode: 'cors'})
-			.then((res) => res.json())
-			.then((arr) => {
-				let data = {
-					type: 'FeatureCollection',
-					features: arr.map(it => {
-						return {
+		 if (fg._map) {
+			 fetch(prefix + '/proxy?' + url, {mode: 'cors'})
+				.then((res) => res.json())
+				.then((arr) => {
+					arr.forEach(it => {
+						let feature = {
 							type: 'Feature',
 							geometry: {
 								type: 'Point',
@@ -28,15 +35,19 @@ function () {
 							},
 							properties: it
 						};
+						let layer = data[it.id];
+						if (layer) {
+							layer.setLatLng([it.latitude, it.longitude]);
+						} else {
+							fg.addData([feature]);
+						}
+						
 					})
-				};
-				fg.clearLayers();
-				fg.addData(data);
-				console.log(data);
-				
-		 })
+			 });
+		 }
 		};
-		
-	setInterval(reget, 15000);
-	//reget();
+	fg.getGmxProperties = () => gmxProps;
+	nsGmx.gmxMap.layersByID[lid] = fg;
+	setInterval(reget, delay);
+	reget();
 }
